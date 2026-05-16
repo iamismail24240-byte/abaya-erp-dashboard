@@ -1,0 +1,127 @@
+// Prisma schema — Abaya ERP (SQLite demo)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum SystemRole {
+  SUPER_ADMIN
+  MANAGER
+  SALES
+  PRODUCTION
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+}
+
+enum OrderChannel {
+  WHOLESALE
+  RETAIL
+}
+
+enum OrderPipelineStatus {
+  PENDING
+  CONFIRMED
+  PRODUCTION
+  QC
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         SystemRole
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  employee     Employee?
+}
+
+model Employee {
+  id           String         @id @default(cuid())
+  userId       String         @unique
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  phone        String
+  salary       Int            // monthly BDT (integer)
+  status       EmployeeStatus @default(ACTIVE)
+  joiningDate  DateTime
+  profilePhoto String?        // URL or /avatars/xyz.jpg
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  orders          SalesOrder[]
+  commissions     Commission[]
+  salesTargets    SalesDailyTarget[]
+  attendances     Attendance[]
+}
+
+model SalesOrder {
+  id               String              @id @default(cuid())
+  orderNo          String              @unique
+  customerName     String
+  channel          OrderChannel
+  amount           Int                 // BDT
+  status           OrderPipelineStatus @default(PENDING)
+  salespersonId    String
+  salesperson      Employee            @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
+  notes            String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  commissions      Commission[]
+}
+
+model Commission {
+  id          String     @id @default(cuid())
+  employeeId  String
+  employee    Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  orderId     String
+  order       SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ratePercent Float
+  amount      Int        // BDT commission
+  createdAt   DateTime   @default(now())
+
+  @@unique([orderId])
+}
+
+model SalesDailyTarget {
+  id            String   @id @default(cuid())
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date          DateTime // day start UTC
+  targetAmount  Int      // BDT daily target
+  createdAt     DateTime @default(now())
+
+  @@unique([employeeId, date])
+}
+
+model Attendance {
+  id         String           @id @default(cuid())
+  employeeId String
+  employee   Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date       DateTime
+  checkIn    String?
+  checkOut   String?
+  status     AttendanceStatus @default(PRESENT)
+  note       String?
+  createdAt  DateTime         @default(now())
+
+  @@unique([employeeId, date])
+}
